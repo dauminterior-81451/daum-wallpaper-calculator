@@ -97,10 +97,6 @@ function formatMeasurement(value: number): string {
   return Number.isInteger(value) ? value.toFixed(0) : value.toString();
 }
 
-function formatMeter(value: number): string {
-  return value.toFixed(2);
-}
-
 function getWallpaperDefault(type: WallpaperType, workType: WorkType) {
   return type === "silk" ? silkWallpaperDefaults[workType] : wallpaperDefaults[type];
 }
@@ -127,7 +123,6 @@ export default function Home() {
   const [workType, setWorkType] = useState<WorkType>("wall");
   const [inputMode, setInputMode] = useState<InputMode>("cad");
   const [cadAreaSquareMillimeter, setCadAreaSquareMillimeter] = useState("6900000");
-  const [cadPerimeterMillimeter, setCadPerimeterMillimeter] = useState("");
   const [area, setArea] = useState("52");
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
@@ -148,8 +143,6 @@ export default function Home() {
         ? toNonNegativeNumber(area)
         : (toNonNegativeNumber(width) * toNonNegativeNumber(height)) / 1000000;
   const totalArea = inputMode === "area" ? rawTotalArea : roundSquareMeter(rawTotalArea);
-  const cadPerimeterMeter = toNonNegativeNumber(cadPerimeterMillimeter) / 1000;
-  const hasCadPerimeter = inputMode === "cad" && cadPerimeterMeter > 0;
   const lossRatePercent =
     lossRateOption === "custom"
       ? toNonNegativeNumber(customLossRate)
@@ -175,11 +168,6 @@ export default function Home() {
       lossRatePercent,
     ],
   );
-  const cadPerimeterOrderLine = hasCadPerimeter
-    ? `
-CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
-    : "";
-
   const orderText = useMemo(
     () => `[도배 자재 발주]
 
@@ -193,9 +181,8 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
 시공면적: ${formatAreaWithPyeong(totalArea)}
 제외면적: ${formatAreaWithPyeong(numericExcludedArea)}
 로스적용면적: ${formatAreaWithPyeong(calculation.lossAppliedArea)}
-수량: ${calculation.requiredRolls}롤${cadPerimeterOrderLine}`,
+수량: ${calculation.requiredRolls}롤`,
     [
-      cadPerimeterOrderLine,
       calculation.lossAppliedArea,
       calculation.requiredRolls,
       numericExcludedArea,
@@ -328,20 +315,9 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
                   onChange={setCadAreaSquareMillimeter}
                   placeholder="6900000"
                 />
-                <NumberInput
-                  label="CAD 둘레(mm, 선택)"
-                  value={cadPerimeterMillimeter}
-                  onChange={setCadPerimeterMillimeter}
-                  placeholder="42540"
-                />
                 <p className="rounded-md bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-800">
                   계산면적: {formatAreaWithPyeong(totalArea)}
                 </p>
-                {hasCadPerimeter ? (
-                  <p className="text-sm font-medium text-stone-600">
-                    CAD 둘레 참고: {formatMeter(cadPerimeterMeter)}m
-                  </p>
-                ) : null}
               </div>
             ) : inputMode === "area" ? (
               <div className="grid gap-3">
@@ -492,7 +468,6 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
             <p>제외면적: {formatAreaWithPyeong(numericExcludedArea)}</p>
             <p>실제 계산면적: {formatAreaWithPyeong(calculation.actualArea)}</p>
             <p>로스율: {formatMeasurement(lossRatePercent)}%</p>
-            {hasCadPerimeter ? <p>CAD 둘레 참고: {formatMeter(cadPerimeterMeter)}m</p> : null}
           </div>
         </section>
 
