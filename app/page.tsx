@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 type WorkType = "wall" | "ceiling" | "wallCeiling";
 type InputMode = "cad" | "area" | "dimensions";
 type WallpaperType = "silk" | "paper" | "custom";
+type CeilingWallpaperSpec = "shinhan312" | "general300" | "custom";
 type LossRateOption = "10" | "15" | "20" | "custom";
 
 type CalculationInput = {
@@ -36,8 +37,22 @@ const wallpaperTypeLabels: Record<WallpaperType, string> = {
   custom: "직접입력",
 };
 
-const wallpaperDefaults: Record<WallpaperType, { width: string; length: string }> = {
-  silk: { width: "1.06", length: "15.6" },
+const silkWallpaperDefaults: Record<WorkType, { width: string; length: string }> = {
+  wall: { width: "1.06", length: "15.6" },
+  ceiling: { width: "1.06", length: "31.2" },
+  wallCeiling: { width: "1.06", length: "15.6" },
+};
+
+const ceilingWallpaperSpecs: Record<
+  CeilingWallpaperSpec,
+  { label: string; width: string; length: string }
+> = {
+  shinhan312: { label: "신한/KCC신한/LX 31.2m", width: "1.06", length: "31.2" },
+  general300: { label: "일반 30m", width: "1.06", length: "30.0" },
+  custom: { label: "직접입력", width: "", length: "" },
+};
+
+const wallpaperDefaults: Record<Exclude<WallpaperType, "silk">, { width: string; length: string }> = {
   paper: { width: "1.06", length: "15.6" },
   custom: { width: "", length: "" },
 };
@@ -62,6 +77,10 @@ function formatSquareMeter(value: number): string {
   return value.toFixed(2);
 }
 
+function roundSquareMeter(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function formatPyeong(value: number): string {
   return (value / SQUARE_METERS_PER_PYEONG).toFixed(2);
 }
@@ -80,6 +99,10 @@ function formatMeasurement(value: number): string {
 
 function formatMeter(value: number): string {
   return value.toFixed(2);
+}
+
+function getWallpaperDefault(type: WallpaperType, workType: WorkType) {
+  return type === "silk" ? silkWallpaperDefaults[workType] : wallpaperDefaults[type];
 }
 
 function calculateWallpaperOrder(input: CalculationInput): CalculationResult {
@@ -110,18 +133,21 @@ export default function Home() {
   const [height, setHeight] = useState("");
   const [excludedArea, setExcludedArea] = useState("0");
   const [wallpaperType, setWallpaperType] = useState<WallpaperType>("silk");
-  const [wallpaperWidth, setWallpaperWidth] = useState(wallpaperDefaults.silk.width);
-  const [wallpaperLength, setWallpaperLength] = useState(wallpaperDefaults.silk.length);
+  const [ceilingWallpaperSpec, setCeilingWallpaperSpec] =
+    useState<CeilingWallpaperSpec>("shinhan312");
+  const [wallpaperWidth, setWallpaperWidth] = useState(silkWallpaperDefaults.wall.width);
+  const [wallpaperLength, setWallpaperLength] = useState(silkWallpaperDefaults.wall.length);
   const [lossRateOption, setLossRateOption] = useState<LossRateOption>("15");
   const [customLossRate, setCustomLossRate] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
 
-  const totalArea =
+  const rawTotalArea =
     inputMode === "cad"
       ? toNonNegativeNumber(cadAreaSquareMillimeter) / 1000000
       : inputMode === "area"
         ? toNonNegativeNumber(area)
         : (toNonNegativeNumber(width) * toNonNegativeNumber(height)) / 1000000;
+  const totalArea = inputMode === "area" ? rawTotalArea : roundSquareMeter(rawTotalArea);
   const cadPerimeterMeter = toNonNegativeNumber(cadPerimeterMillimeter) / 1000;
   const hasCadPerimeter = inputMode === "cad" && cadPerimeterMeter > 0;
   const lossRatePercent =
@@ -163,6 +189,7 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
 규격: 폭 ${formatMeasurement(numericWallpaperWidth)}m × 길이 ${formatMeasurement(
       numericWallpaperLength,
     )}m
+산출기준: 면적 ÷ 1롤 면적
 시공면적: ${formatAreaWithPyeong(totalArea)}
 제외면적: ${formatAreaWithPyeong(numericExcludedArea)}
 로스적용면적: ${formatAreaWithPyeong(calculation.lossAppliedArea)}
@@ -183,8 +210,35 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
 
   function handleWallpaperTypeChange(type: WallpaperType) {
     setWallpaperType(type);
-    setWallpaperWidth(wallpaperDefaults[type].width);
-    setWallpaperLength(wallpaperDefaults[type].length);
+
+    const defaultSpec =
+      type !== "custom" && workType === "ceiling"
+        ? ceilingWallpaperSpecs[ceilingWallpaperSpec]
+        : getWallpaperDefault(type, workType);
+    setWallpaperWidth(defaultSpec.width);
+    setWallpaperLength(defaultSpec.length);
+  }
+
+  function handleWorkTypeChange(type: WorkType) {
+    setWorkType(type);
+
+    if (wallpaperType !== "custom") {
+      const defaultSpec =
+        type === "ceiling"
+          ? ceilingWallpaperSpecs[ceilingWallpaperSpec]
+          : getWallpaperDefault(wallpaperType, type);
+      setWallpaperWidth(defaultSpec.width);
+      setWallpaperLength(defaultSpec.length);
+    }
+  }
+
+  function handleCeilingWallpaperSpecChange(spec: CeilingWallpaperSpec) {
+    setCeilingWallpaperSpec(spec);
+
+    if (spec !== "custom") {
+      setWallpaperWidth(ceilingWallpaperSpecs[spec].width);
+      setWallpaperLength(ceilingWallpaperSpecs[spec].length);
+    }
   }
 
   async function handleCopyOrderText() {
@@ -233,12 +287,17 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
                         ? "border-stone-950 bg-stone-950 text-white"
                         : "border-stone-300 bg-white text-stone-700"
                     }`}
-                    onClick={() => setWorkType(type)}
+                    onClick={() => handleWorkTypeChange(type)}
                   >
                     {workTypeLabels[type]}
                   </button>
                 ))}
               </div>
+              {workType === "wallCeiling" ? (
+                <p className="text-sm font-medium text-stone-600">
+                  벽과 천장은 따로 계산하면 더 정확합니다.
+                </p>
+              ) : null}
             </fieldset>
 
             <fieldset className="grid gap-2">
@@ -348,6 +407,28 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
               </div>
             </fieldset>
 
+            {workType === "ceiling" && wallpaperType !== "custom" ? (
+              <fieldset className="grid gap-2">
+                <legend className="text-sm font-medium text-stone-700">천장지 규격</legend>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {(Object.keys(ceilingWallpaperSpecs) as CeilingWallpaperSpec[]).map((spec) => (
+                    <button
+                      key={spec}
+                      type="button"
+                      className={`min-h-11 rounded-md border px-2 py-2 text-sm font-semibold ${
+                        ceilingWallpaperSpec === spec
+                          ? "border-stone-950 bg-stone-950 text-white"
+                          : "border-stone-300 bg-white text-stone-700"
+                      }`}
+                      onClick={() => handleCeilingWallpaperSpecChange(spec)}
+                    >
+                      {ceilingWallpaperSpecs[spec].label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+
             <div className="grid gap-3 sm:grid-cols-2">
               <NumberInput
                 label="벽지 폭(m)"
@@ -362,12 +443,6 @@ CAD 둘레 참고: ${formatMeter(cadPerimeterMeter)}m`
                 placeholder="15.6"
               />
             </div>
-            {wallpaperType === "silk" ? (
-              <p className="text-sm font-medium text-stone-600">
-                실크벽지 1롤은 약 5평 기준입니다.
-              </p>
-            ) : null}
-
             <fieldset className="grid gap-2">
               <legend className="text-sm font-medium text-stone-700">로스율</legend>
               <div className="grid grid-cols-4 gap-2">
